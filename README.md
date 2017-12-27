@@ -1,7 +1,7 @@
 # Terraform files for creating grafana server, onedata clients and running a benchmark
 
 ## Prerequisites
-A running Ceph cluster and oneprovider built with ceph-tf is required. The relative path access ceph-ft directiry should be ../ceph-tf.
+A running Ceph cluster and oneprovider built with ceph-tf is required. The relative path access ceph-ft directory should be ../ceph-tf.
 
 ## Configuring
 In order to build your grafana server and onedata clients machines you need to:

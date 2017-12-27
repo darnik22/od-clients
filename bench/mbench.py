@@ -51,12 +51,12 @@ def bench(counters, time_limit, running):
       os.chdir("..")
       os.rmdir(dir)
       counters['delete-dir']+=1
-      end=time.time()
-      if end-start > time_limit:
-        running.value = 0
-        break
     except TimeoutError:
       print('TimeoutError')
+    end=time.time()
+    if end-start > time_limit:
+      running.value = 0
+      break
   print("Elapsed:", "{0:.5f}".format(end-start), "s")
   print(counters)
 
