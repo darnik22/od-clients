@@ -25,6 +25,10 @@ resource "null_resource" "provision-grafana" {
     source = "etc/sources.list"
     destination = "sources.list"
   }
+  provisioner "file" {
+    source = "bench/dashboard.json"
+    destination = "dashboard.json"
+  }
   provisioner "remote-exec" {
     inline = [
       "sudo cp sources.list ${var.sources_list_dest}", # if debmirror at #      "sudo apt-add-repository -y 'deb http://nova.clouds.archive.ubuntu.com/ubuntu/ xenial main restricted universe multiverse'", # if debmirror at OTC is not working
@@ -34,7 +38,9 @@ resource "null_resource" "provision-grafana" {
       "sudo apt-get -y install docker.io",
       "sudo systemctl enable docker",
       "sudo systemctl start docker",
-      "sudo docker run -d --name go-graphite --restart=always -p 80:80 -p 2003-2004:2003-2004 gographite/go-graphite",
+      "sudo docker run -d --name go-graphite --restart=always -p 80:80 -p 2003-2004:2003-2004 -p 3000:3000 gographite/go-graphite",
+      "sleep 3",
+      "curl http://admin:admin@localhost:3000/api/dashboards/db -X POST -d @dashboard.json -H 'Content-Type: application/json'",
     ]
   }
 }
@@ -157,6 +163,36 @@ resource "null_resource" "provision-clients-mount" {
       "mkdir onedata",
       "oneclient -u onedata",
       "oneclient -H ${var.op_host} -t ${var.access_token} ${var.oneclient_opts} onedata",
+    ]
+  }
+}
+
+# Provision collectd to Ceph cluster and oneprovider  
+resource "null_resource" "provision-collectd" {
+#  count = "${var.client_count}"
+#  depends_on = [ "null_resource.provision-clients-mount", "null_resource.provision-grafana"]
+  triggers {
+#    mount = "${element(null_resource.provision-clients-mount.*.id, count.index)}"
+    grafana = "${openstack_compute_instance_v2.grafana.access_ip_v4}"
+  }
+  connection {
+    host     = "${trimspace(file(var.mgt_ip_file))}"
+#    host = "${element(openstack_compute_instance_v2.clients.*.access_ip_v4, count.index)}"
+    user     = "${var.ssh_user_name}"
+    agent = true
+    timeout = "120s"
+  }
+  provisioner "file" {
+    content = "${data.template_file.collectd.rendered}"
+    destination = "collectd.conf"
+  }
+  provisioner "file" {
+    source = "collectd.yml"
+    destination = "collectd.yml"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "ansible-playbook collectd.yml",
     ]
   }
 }
@@ -302,6 +338,12 @@ resource "openstack_compute_secgroup_v2" "grafana" {
     to_port     = 65535
     ip_protocol = "tcp"
     from_group_id = "${openstack_compute_secgroup_v2.clients.id}"
+  }
+  rule {
+    from_port   = 1
+    to_port     = 65535
+    ip_protocol = "tcp"
+    from_group_id = "${data.openstack_networking_secgroup_v2.ceph.id}"
   }
   rule {
     from_port   = -1
